@@ -1,54 +1,48 @@
-# Figure out which compiler to use (prefer gdc, fall back to dmd).
-ifeq (,$(DC))
-	DC:=$(shell which gdc 2>/dev/null)
-ifeq (,$(DC))
-	DC:=dmd
-endif
-endif
+.PHONY: all clean release debug unittest
+.DELETE_ON_ERROR:
 
-ifeq (gdc,$(notdir $(DC)))
-	DFLAGS=-c -O4 -frelease -fno-bounds-check -fbuiltin
-	OFSYNTAX=-o
-else
-ifeq (dmd,$(notdir $(DC)))
-	DFLAGS=-c -O -inline -release
-	OFSYNTAX=-of
-else
-    $(error Unsupported compiler: $(DC))
-endif
-endif
+RELEASE_BIN := warp.release
+DEBUG_BIN   := warp.debug
+UT_BIN      := warp.ut
 
-CC=cc
-CXX=c++
-CFLAGS=
-CXXFLAGS=
-WARPDRIVE=warpdrive
-GENERATED_DEFINES=generated_defines.d
+RELEASE_DEBUG := $(RELEASE_BIN).debug
 
-# warp sources
-SRCS=cmdline.d constexpr.d context.d directive.d expanded.d file.d \
-id.d lexer.d loc.d macros.d main.d number.d outdeps.d ranges.d skip.d \
-sources.d stringlit.d textbuf.d charclass.d
+DC := dmd
+STRIP := strip
+OBJCOPY := objcopy
 
-# Binaries generated
-BIN:=warp $(WARPDRIVE)
+src_ext := .d
+obj_ext := .o
 
-# Rules
+COMMON_DFLAGS         := $(DFLAGS)
+$(RELEASE_BIN)_DFLAGS := -O -inline -release
+$(DEBUG_BIN)_DFLAGS   := -debug -g
+$(UT_BIN)_DFLAGS      := -unittest
 
-all : $(BIN)
+
+SRCS := cmdline.d constexpr.d context.d directive.d expanded.d file.d \
+        id.d lexer.d loc.d macros.d main.d number.d outdeps.d ranges.d skip.d \
+        sources.d stringlit.d textbuf.d charclass.d
+
+g_objd = $(foreach x,$1,.$(patsubst warp.%,%,$x))
+
+all : release debug unittest
+
+release: $(RELEASE_DEBUG)
+$(RELEASE_DEBUG): $(RELEASE_BIN)
+	$(OBJCOPY) --only-keep-debug $< $@
+	$(OBJCOPY) --add-gnu-debuglink=$@ $<
+	$(STRIP) -s $<
+
+debug: $(DEBUG_BIN)
+
+unittest: $(UT_BIN)
+	./$<
+
+$(RELEASE_BIN) $(DEBUG_BIN) $(UT_BIN): $(SRCS)
+	$(DC) $($@_DFLAGS) $(COMMON_DFLAGS) -od$(call g_objd,$@) -of$@ $^
 
 clean :
-	rm -rf $(BIN) $(addsuffix .o, $(BIN)) $(GENERATED_DEFINES)
+	-rm -f $(RELEASE_BIN) $(DEBUG_BIN) $(UT_BIN) $(RELEASE_DEBUG)
+	-rm -rf $(call g_objd,$(RELEASE_BIN) $(DEBUG_BIN) $(UT_BIN))
 
-warp.o : $(SRCS)
-	$(DC) $(DFLAGS) $(OFSYNTAX)$@ $(SRCS)
-
-warp : warp.o
-	gcc -m64 -Bthird-party2/binutils/2.21.1/centos6-native/da39a3e/bin/gold -Bthird-party2/glibc/2.17/gcc-4.8.1-glibc-2.17-fb/99df8fc/lib -L/home/aalexandre/bin/../d/phobos/generated/linux/release/default -l:libphobos2.a -lpthread -lm -lrt -o $@ $^
-
-$(WARPDRIVE) : warpdrive.d $(GENERATED_DEFINES)
-	$(DC) $(DFLAGS) $(OFSYNTAX)$@ $^
-
-$(GENERATED_DEFINES) :
-	./builtin_defines.sh '$(CC) $(CFLAGS)' '$(CXX) $(CXXFLAGS)' >$@.tmp
-	mv $@.tmp $@
