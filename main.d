@@ -36,7 +36,7 @@ else
         // No need to collect
         GC.disable();
 
-        const params = parseCommandLine(args);
+        auto params = parseCommandLine(args);
 
         auto context = Context!R(params);
 

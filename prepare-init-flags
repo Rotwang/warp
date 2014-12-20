@@ -1,0 +1,80 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+
+sub  trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
+
+sub find_source_type {
+        my $compiler = shift;
+        if ($compiler =~ m{^.*[+][+]}) {
+                "c++";
+        } else {
+                "c";
+        }
+}
+
+sub run_fake_build {
+        my $compiler = shift;
+        my $stype = find_source_type($compiler);
+
+        qx{LC_ALL=C $compiler -v -E -x $stype -o/dev/null - </dev/null 2>&1};
+}
+
+sub run_fake_preprocess {
+        my $compiler = shift;
+        my $stype = find_source_type($compiler);
+
+        qx{LC_ALL=C $compiler -x $stype -dM -E - </dev/null};
+}
+
+sub find_sysincludes {
+        my @cout = run_fake_build(shift);
+
+        my @inc_paths;
+        my $flip = undef;
+        foreach (@cout) {
+                chomp;
+                last if (/^\s*End\s+of\s+search\s+list[.]\s*$/);
+                if ($flip) {
+                        s/^\s+//; s/\s+$//;
+                        push(@inc_paths, trim($_)) if (!/\s*#.*/);
+                }
+                if (/^\s*#include\s+\S+\s+search\s+starts\s+here\s*:\s*$/) {
+                        $flip = 1; # start looking for inc paths from here
+                }
+        }
+        \@inc_paths;
+}
+
+sub find_defines {
+        my @cout = run_fake_preprocess(shift);
+        my @a = map {s/^\s*#define\s+//;trim($_)} @cout;
+        \@a;
+}
+
+sub print_d {
+        my $incs = shift;
+        my $defs = shift;
+        print "string[] initSysincludes = [\n";
+        print '    `', $_, '`,', "\n" foreach (@{$incs});
+        print "];\n\n";
+
+        print "string[] initDefines = [\n";
+        foreach (@{$defs}) {
+                if (/^\s*(\S+)\s+(.*)$/) {
+                        print '    `', "$1=$2", '`,', "\n";
+                } else {
+                        print '    `', $_, '`,', "\n";
+                }
+        }
+        print "];\n";
+}
+
+my $compiler;
+GetOptions ("compiler=s" => \$compiler);
+die "Compiler path required!Use --compiler <path>\n" if (!$compiler);
+
+print_d(find_sysincludes($compiler), find_defines($compiler))

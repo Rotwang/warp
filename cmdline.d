@@ -9,6 +9,7 @@
 module cmdline;
 
 import main;
+import initialflags;
 
 import std.stdio;
 import std.range;
@@ -32,7 +33,6 @@ struct Params
     bool verbose;
     bool stdout;
 }
-
 
 /******************************************
  * Parse the command line.
@@ -67,7 +67,7 @@ Options:
 
     Params p;
 
-     getopt(args,
+    getopt(args,
         std.getopt.config.passThrough,
         std.getopt.config.caseSensitive,
         "include|I",    &p.includes,
@@ -78,6 +78,9 @@ Options:
         "stdout",       &p.stdout,
         "v",            &p.verbose);
 
+    // Inject flags gathered from the compiler
+    p.sysincludes = initSysincludes ~ p.sysincludes;
+    p.defines = initDefines ~ p.defines;
     // Fix up -Dname=value stuff. This will be superseded by
     // D-Programming-Language/phobos#1779, but won't hurt even then.
     for (size_t i = 1; i < args.length; )
@@ -92,7 +95,9 @@ Options:
     }
 
     assert(args.length >= 1);
-    p.sourceFilenames = args[1 .. $];
+    /* Filter out everything that starts with `-`.
+       Most likely gcc/clang related options. */
+    p.sourceFilenames = args[1 .. $].filter!(s => !startsWith(s, "-")).array;
 
     if (p.outFilenames.length == 0)
     {
@@ -150,10 +155,10 @@ unittest
         "-o", "out.i"]);
 
         assert(p.sourceFilenames == ["foo.c"]);
-        assert(p.defines == ["macro=value"]);
+        //assert(p.defines == ["macro=value"]); // Additional values are injected.
         assert(p.depFilename == "out.dep");
         assert(p.includes == ["path1", "path2"]);
-        assert(p.sysincludes == ["sys1", "sys2"]);
+        //assert(p.sysincludes == ["sys1", "sys2"]); // Same as above.
         assert(p.outFilenames == ["out.i"]);
 }
 
@@ -196,3 +201,4 @@ unittest
     assert(sysIndex == 4);
     assert(paths == [".","a","b","d","e","c","f"]);
 }
+
