@@ -55,26 +55,35 @@ sub find_defines {
         \@a;
 }
 
+sub find_cc1 {
+        my @cout = run_fake_build(shift);
+        map {/^\s*(\S+).*/;$1} (grep /^\s*\S*cc1/, @cout)[0];
+}
+
 sub print_d {
         my $incs = shift;
         my $defs = shift;
+        my $cc1  = shift;
+
         print "string[] initSysincludes = [\n";
         print '    `', $_, '`,', "\n" foreach (@{$incs});
         print "];\n\n";
 
         print "string[] initDefines = [\n";
         foreach (@{$defs}) {
-                if (/^\s*(\S+)\s+(.*)$/) {
+                if (/^\s*(\S+)\s*(.*)$/) {
                         print '    `', "$1=$2", '`,', "\n";
                 } else {
                         print '    `', $_, '`,', "\n";
                 }
         }
-        print "];\n";
+        print "];\n\n";
+
+        print 'string ccOne = `', $cc1, '`;', "\n";
 }
 
 my $compiler;
 GetOptions ("compiler=s" => \$compiler);
 die "Compiler path required!Use --compiler <path>\n" if (!$compiler);
 
-print_d(find_sysincludes($compiler), find_defines($compiler))
+print_d(find_sysincludes($compiler), find_defines($compiler), find_cc1($compiler));

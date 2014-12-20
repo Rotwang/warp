@@ -10,6 +10,7 @@ endif
 GEN_DIR := generated
 INIT_FLAGS := $(GEN_DIR)/$(COMPILER)/initialflags.d
 _dir_out := $(dir $(INIT_FLAGS))
+gen_initflags := ./prepare-init-flags
 
 RELEASE_BIN := $(_dir_out)/warp.release
 DEBUG_BIN   := $(_dir_out)/warp.debug
@@ -53,8 +54,8 @@ unittest: $(UT_BIN)
 $(RELEASE_BIN) $(DEBUG_BIN) $(UT_BIN): $(SRCS)
 	$(DC) $($@_DFLAGS) $(COMMON_DFLAGS) -od$(call g_objd,$@) -of$@ $^
 
-$(INIT_FLAGS): $(COMPILER) | $(_dir_out)
-	./prepare-init-flags --compiler "$(COMPILER)" > $@
+$(INIT_FLAGS): $(COMPILER) $(gen_initflags) | $(_dir_out)
+	$(gen_initflags) --compiler "$(COMPILER)" > $@
 
 clean :
 	-rm -rf $(GEN_DIR)

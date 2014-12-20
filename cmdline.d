@@ -97,7 +97,10 @@ Options:
     assert(args.length >= 1);
     /* Filter out everything that starts with `-`.
        Most likely gcc/clang related options. */
-    p.sourceFilenames = args[1 .. $].filter!(s => !startsWith(s, "-")).array;
+    auto x = args[1 .. $].filter!(s => !startsWith(s, "-"));
+    // UGLY
+    auto y = x.filter!(s => endsWith(s, ".c", ".cc", ".cp", ".cpp", ".c++", ".cxx", ".C"));
+    p.sourceFilenames = y.array;
 
     if (p.outFilenames.length == 0)
     {

@@ -9,6 +9,8 @@
 import std.array;
 import std.format;
 import std.stdio;
+import std.algorithm;
+import std.process;
 import core.stdc.stdlib;
 import core.memory;
 
@@ -16,6 +18,7 @@ import cmdline;
 import context;
 import loc;
 import sources;
+import initialflags;
 
 // Data type for C source code characters
 alias ubyte uchar;
@@ -36,8 +39,12 @@ else
         // No need to collect
         GC.disable();
 
-        const params = parseCommandLine(args);
+        if (!args[1 .. $].filter!(s => s == "-fpreprocessed").empty) {
+            auto pid = spawnProcess(ccOne ~ args[1 .. $]);
+            exit(wait(pid));
+        }
 
+        const params = parseCommandLine(args);
         auto context = Context!R(params);
 
         try
